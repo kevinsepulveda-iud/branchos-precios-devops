@@ -1,0 +1,17 @@
+[project]
+name = "branchos-precios"
+version = "1.0.0"
+description = "Pipeline de web scraping y análisis de precios de Tiendas Branchos con CI/CD en GitHub Actions"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = ["notebooks"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
