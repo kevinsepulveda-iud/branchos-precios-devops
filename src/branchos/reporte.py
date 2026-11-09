@@ -50,8 +50,9 @@ def grafico_marcas(tabla, ruta):
     ax1.set_title("Precio y descuento promedio por marca")
     ax1.spines[["top"]].set_visible(False)
     ax2.spines[["top"]].set_visible(False)
-    fig.legend(loc="upper left", bbox_to_anchor=(0.11, 0.88), fontsize=8)
-    fig.tight_layout()
+    # la leyenda va debajo del gráfico para que no tape ninguna barra
+    fig.legend(loc="lower center", ncol=2, fontsize=8, frameon=False)
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
     fig.savefig(ruta, dpi=120)
     plt.close(fig)
 
