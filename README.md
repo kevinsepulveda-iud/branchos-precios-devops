@@ -86,4 +86,4 @@ Esta regla sale de lo que me pasó en la EA1: la primera ejecución se detuvo en
 Reviso el `robots.txt` antes de extraer, espero 1,5 s entre peticiones, hago una sola petición a la vez y solo tomo información pública (nombre, precio, tallas). El scraping programado corre una vez por semana. Uso académico.
 
 ---
-Kevin Daniel Sepúlveda Giraldo · Ingeniería de Software y Datos · IU Digital de Antioquia
+Kevin Daniel Sepúlveda Giraldo y Jessica Serna Vargas (Grupo 9) · Ingeniería de Software y Datos · IU Digital de Antioquia

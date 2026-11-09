@@ -126,7 +126,8 @@ img{{max-width:100%}} footer{{color:#888;font-size:12px;margin-top:30px}}
 </style></head><body>
 <h1>Tenis para hombre – Tiendas Branchos</h1>
 <p class="sub">Extracción del {html.escape(str(df['fecha_extraccion'].iloc[0]))} ·
-Programación para Análisis de Datos – IU Digital · Kevin Daniel Sepúlveda Giraldo</p>
+Programación para Análisis de Datos – IU Digital ·
+Kevin Daniel Sepúlveda Giraldo y Jessica Serna Vargas (Grupo 9)</p>
 <div class="kpis">{tarjetas_html}</div>
 <img src="rangos.png" alt="Rangos de precio">
 <h2>Por marca</h2>
