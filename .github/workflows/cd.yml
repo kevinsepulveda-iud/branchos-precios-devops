@@ -1,0 +1,61 @@
+# Entrega / despliegue continuo: cuando hay cambios en main (merge de un PR o
+# una extracción nueva) vuelvo a correr las pruebas y, si pasan, genero el
+# reporte y lo publico en GitHub Pages.
+name: CD - publicar reporte en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Scraping programado"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  construir:
+    # Si viene del scraping programado, solo despliego cuando ese workflow terminó bien
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Pruebas antes de desplegar
+        run: pytest -q
+
+      - name: Generar el sitio
+        run: python scripts/publicar.py --salida site --version ${GITHUB_SHA::7}
+
+      - name: Subir el sitio como artefacto de Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  desplegar:
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Desplegar en GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
