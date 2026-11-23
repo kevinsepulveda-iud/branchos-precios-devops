@@ -1,15 +1,12 @@
 {
-  "total_reportado": 505,
-  "paginas": 43,
-  "registros": 481,
-  "reintentos": 4,
+  "total_reportado": 488,
+  "paginas": 41,
+  "registros": 488,
+  "reintentos": 0,
   "paginas_recuperadas": [],
-  "paginas_fallidas": [
-    20,
-    26
-  ],
-  "segundos": 250.8,
-  "fecha": "2026-11-16",
-  "registros_limpios": 481,
+  "paginas_fallidas": [],
+  "segundos": 143.9,
+  "fecha": "2026-11-23",
+  "registros_limpios": 488,
   "problemas": []
 }
