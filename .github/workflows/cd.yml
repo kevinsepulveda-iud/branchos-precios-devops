@@ -1,7 +1,10 @@
-# Entrega / despliegue continuo: cuando hay cambios en main (merge de un PR o
-# una extracción nueva) vuelvo a correr las pruebas y, si pasan, genero el
-# reporte y lo publico en GitHub Pages.
-name: CD - publicar reporte en GitHub Pages
+# Entrega / despliegue continuo. Cuando hay cambios en main (merge de un PR o una
+# extracción nueva del scraping programado):
+#   1. construir  -> pruebas otra vez, genero el reporte + la aplicación web (site/)
+#   2. desplegar  -> publico site/ en GitHub Pages (entorno github-pages)
+#   3. verificar  -> pido el sitio publicado y reviso que salud.json tenga la versión de este commit
+#   4. imagen     -> publico la imagen Docker de la app en GitHub Container Registry (entorno produccion)
+name: CD - desplegar aplicación web
 
 on:
   push:
@@ -13,36 +16,40 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: despliegue
+  cancel-in-progress: false   # no corto un despliegue a la mitad
+
+env:
+  # Variables del repositorio (Settings > Secrets and variables > Actions > Variables).
+  # Si no existen, uso el valor por defecto que va después de ||.
+  URL_SITIO: ${{ vars.URL_SITIO || 'https://kevinsepulveda-iud.github.io/branchos-precios-devops' }}
+  IMAGEN: ghcr.io/${{ github.repository_owner }}/branchos-precios
 
 jobs:
   construir:
     # Si viene del scraping programado, solo despliego cuando ese workflow terminó bien
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.corta }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
+      - name: Versión (SHA corto del commit)
+        id: version
+        run: echo "corta=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
+      - uses: ./.github/actions/preparar-python
 
       - name: Pruebas antes de desplegar
         run: pytest -q
 
-      - name: Generar el sitio
-        run: python scripts/publicar.py --salida site --version ${GITHUB_SHA::7}
+      - name: Generar el reporte y la aplicación web
+        run: python scripts/publicar.py --salida site --version ${{ steps.version.outputs.corta }}
 
       - name: Subir el sitio como artefacto de Pages
         uses: actions/upload-pages-artifact@v3
@@ -52,10 +59,74 @@ jobs:
   desplegar:
     needs: construir
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url }}app/
     steps:
       - name: Desplegar en GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v4
+
+  verificar:
+    name: Verificar el despliegue
+    needs: [construir, desplegar]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Revisar que la versión publicada sea la de este commit
+        env:
+          ESPERADA: ${{ needs.construir.outputs.version }}
+        run: |
+          # GitHub Pages puede tardar unos segundos en servir la versión nueva
+          for intento in $(seq 1 12); do
+            publicada=$(curl -fs "$URL_SITIO/app/salud.json?t=$(date +%s)" | python -c "import json,sys; print(json.load(sys.stdin)['version'])" || true)
+            echo "Intento $intento: publicada=$publicada esperada=$ESPERADA"
+            [ "$publicada" = "$ESPERADA" ] && break
+            sleep 10
+          done
+          [ "$publicada" = "$ESPERADA" ] || { echo "::error::El sitio no sirve la versión $ESPERADA"; exit 1; }
+          curl -fs "$URL_SITIO/app/" | grep -q "Buscador de precios"
+          curl -fs "$URL_SITIO/app/datos/catalogo.json" -o catalogo.json
+          python -c "import json; d=json.load(open('catalogo.json')); print(len(d['productos']), 'productos publicados')"
+
+      - name: Resumen del despliegue
+        run: |
+          {
+            echo "### Despliegue ${{ needs.construir.outputs.version }}"
+            echo "- Aplicación: $URL_SITIO/app/"
+            echo "- Reporte: $URL_SITIO/"
+            echo "- Estado: $URL_SITIO/app/salud.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  imagen:
+    name: Publicar imagen Docker
+    needs: construir
+    runs-on: ubuntu-latest
+    environment: produccion
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Iniciar sesión en GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # token que GitHub crea para cada ejecución
+
+      - name: Construir y publicar
+        env:
+          VERSION: ${{ needs.construir.outputs.version }}
+        run: |
+          docker build --build-arg VERSION=$VERSION \
+            --label org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }} \
+            -t $IMAGEN:$VERSION -t $IMAGEN:latest .
+          docker push $IMAGEN:$VERSION
+          docker push $IMAGEN:latest
+          echo "Imagen publicada: \`$IMAGEN:$VERSION\`" >> "$GITHUB_STEP_SUMMARY"

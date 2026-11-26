@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buscador de precios – Tenis Branchos</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<header>
+  <h1>Buscador de precios de tenis para hombre</h1>
+  <p class="sub">Tiendas Branchos · datos extraídos cada lunes con GitHub Actions ·
+    <span id="fechas">cargando…</span></p>
+</header>
+
+<section class="kpis" aria-label="Resumen de la semana">
+  <div class="kpi"><span>Productos en la última extracción</span><b id="k-total">–</b></div>
+  <div class="kpi"><span>Bajaron de precio vs. semana anterior</span><b id="k-bajaron">–</b></div>
+  <div class="kpi"><span>Subieron de precio</span><b id="k-subieron">–</b></div>
+  <div class="kpi"><span>Nuevos esta semana</span><b id="k-nuevos">–</b></div>
+</section>
+
+<form id="filtros" class="filtros" onsubmit="return false">
+  <label>Buscar<input id="f-q" type="search" placeholder="Ej.: court vision"></label>
+  <label>Marca<select id="f-marca"><option value="">Todas</option></select></label>
+  <label>Tipo<select id="f-tipo"><option value="">Todos</option></select></label>
+  <label>Precio máximo<select id="f-max">
+    <option value="">Sin límite</option>
+    <option value="150000">$ 150.000</option>
+    <option value="250000">$ 250.000</option>
+    <option value="350000">$ 350.000</option>
+  </select></label>
+  <label>Ordenar por<select id="f-orden">
+    <option value="descuento">Mayor descuento</option>
+    <option value="variacion">Más bajó esta semana</option>
+    <option value="precio">Precio más bajo</option>
+    <option value="-precio">Precio más alto</option>
+  </select></label>
+</form>
+
+<p id="conteo" class="conteo"></p>
+<main>
+  <table>
+    <thead><tr><th>Producto</th><th>Marca</th><th>Tipo</th><th class="num">Precio</th>
+      <th class="num">Antes</th><th class="num">Desc.</th><th class="num">Cambio semana</th></tr></thead>
+    <tbody id="filas"></tbody>
+  </table>
+  <aside id="detalle" class="detalle" hidden>
+    <button id="cerrar" type="button" aria-label="Cerrar">×</button>
+    <h2 id="d-nombre"></h2>
+    <p id="d-datos"></p>
+    <svg id="d-grafico" viewBox="0 0 320 160" role="img" aria-label="Historial de precio"></svg>
+    <table id="d-historial"></table>
+    <a id="d-url" target="_blank" rel="noopener">Ver en la tienda</a>
+  </aside>
+</main>
+
+<footer>
+  Kevin Daniel Sepúlveda Giraldo y Jessica Serna Vargas (Grupo 9) · Programación para Análisis de Datos ·
+  IU Digital de Antioquia · versión <span id="version">–</span> ·
+  <a href="../">reporte de indicadores</a> ·
+  <a href="https://github.com/kevinsepulveda-iud/branchos-precios-devops">código</a>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

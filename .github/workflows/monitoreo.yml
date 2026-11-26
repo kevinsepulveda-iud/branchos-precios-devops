@@ -1,0 +1,45 @@
+# Monitoreo: todos los días reviso que la aplicación publicada responda y que los
+# datos no estén viejos. El scraping corre cada lunes; si la última extracción tiene
+# más de MAX_DIAS_DATOS días es porque algo falló y este workflow queda en rojo
+# (GitHub me avisa por correo cuando un workflow programado falla).
+name: Monitoreo de la aplicación
+
+on:
+  schedule:
+    - cron: "0 13 * * *"      # 13:00 UTC = 8:00 a. m. en Colombia
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  URL_SITIO: ${{ vars.URL_SITIO || 'https://kevinsepulveda-iud.github.io/branchos-precios-devops' }}
+  MAX_DIAS_DATOS: ${{ vars.MAX_DIAS_DATOS || '8' }}
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pedir salud.json de la app publicada
+        run: |
+          codigo=$(curl -s -o salud.json -w "%{http_code}" "$URL_SITIO/app/salud.json?t=$(date +%s)")
+          echo "HTTP $codigo"
+          [ "$codigo" = "200" ] || { echo "::error::La aplicación no responde (HTTP $codigo)"; exit 1; }
+          cat salud.json
+
+      - name: Revisar que los datos estén al día
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import date
+          d = json.load(open("salud.json"))
+          dias = (date.today() - date.fromisoformat(d["ultima_extraccion"])).days
+          maximo = int(os.environ["MAX_DIAS_DATOS"])
+          linea = f"Última extracción {d['ultima_extraccion']} (hace {dias} días), {d['productos']} productos, versión {d['version']}"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"### Monitoreo\n{linea}\n")
+          print(linea)
+          if dias > maximo or d["productos"] == 0:
+              print(f"::error::Los datos tienen {dias} días (máximo {maximo}). Revisar el workflow Scraping programado.")
+              raise SystemExit(1)
+          PY
