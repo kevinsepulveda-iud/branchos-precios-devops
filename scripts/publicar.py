@@ -4,12 +4,15 @@ Uso:
     python scripts/publicar.py --salida site --version <sha del commit>
 
 Lee la última extracción y todo el histórico, y genera site/index.html con
-los indicadores, gráficos y el CSV descargable. GitHub Actions sube esa
-carpeta a GitHub Pages.
+los indicadores, gráficos y el CSV descargable. Desde la EA3 también copia la
+aplicación web (app/) en site/app/ con su catálogo en JSON y un salud.json
+que el pipeline revisa después de desplegar. GitHub Actions sube esa carpeta
+a GitHub Pages.
 """
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -18,7 +21,7 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
-from branchos import analisis, reporte  # noqa: E402
+from branchos import analisis, catalogo, reporte  # noqa: E402
 
 
 def cargar_historico(carpeta):
@@ -45,6 +48,19 @@ def cargar_historico(carpeta):
     return pd.DataFrame(filas)
 
 
+def publicar_app(carpeta_datos, salida, version):
+    """Copia app/ en site/app/ y escribe el catálogo y el estado de salud en JSON."""
+    destino = Path(salida) / "app"
+    shutil.copytree(RAIZ / "app", destino, dirs_exist_ok=True)
+    extracciones = catalogo.cargar_extracciones(Path(carpeta_datos) / "historico")
+    datos = catalogo.construir_catalogo(extracciones, version)
+    (destino / "datos").mkdir(exist_ok=True)
+    (destino / "datos" / "catalogo.json").write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+    salud = catalogo.estado_salud(datos)
+    (destino / "salud.json").write_text(json.dumps(salud, indent=2, ensure_ascii=False), encoding="utf-8")
+    return destino, catalogo.resumen_cambios(datos)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--datos", default=str(RAIZ / "data"))
@@ -56,6 +72,8 @@ def main():
     historico = cargar_historico(Path(args.datos) / "historico")
     ruta = reporte.generar_sitio(actual, historico, args.salida, args.version)
     print(f"Sitio generado en {ruta}")
+    carpeta_app, cambios = publicar_app(args.datos, args.salida, args.version)
+    print(f"Aplicación web en {carpeta_app} · cambios contra la semana anterior: {cambios}")
     return 0
 
 
