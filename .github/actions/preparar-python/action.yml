@@ -1,0 +1,25 @@
+# Acción reutilizable (composite): ci.yml, cd.yml y scraping-programado.yml necesitan lo mismo antes de empezar,
+# así que lo dejo en un solo lugar. Si mañana cambio la versión de Python o el cache,
+# lo cambio aquí y no en cada archivo.
+name: Preparar Python
+description: Instala Python con cache de pip y las dependencias del proyecto
+inputs:
+  python-version:
+    description: Versión de Python
+    required: false
+    default: "3.12"
+  requisitos:
+    description: Archivo de dependencias a instalar
+    required: false
+    default: requirements-dev.txt
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+
+    - name: Instalar dependencias (${{ inputs.requisitos }})
+      shell: bash
+      run: pip install -r ${{ inputs.requisitos }}
