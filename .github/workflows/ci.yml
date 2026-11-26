@@ -1,4 +1,7 @@
-# Integración continua: cada push o pull request ejecuta el linter y las pruebas.
+# Integración continua: cada push o pull request pasa por tres trabajos en cadena.
+#   1. calidad     -> ruff revisa el estilo (si falla, no gasto tiempo corriendo lo demás)
+#   2. pruebas     -> pytest en Python 3.10, 3.11 y 3.12 (matriz)
+#   3. contenedor  -> construyo la imagen Docker de la app, la arranco y pruebo /salud
 # Si algo falla, GitHub marca el PR en rojo y no se debe hacer merge a main.
 name: CI - pruebas y calidad
 
@@ -8,9 +11,23 @@ on:
   pull_request:
     branches: [main, develop]
 
+# si hago dos push seguidos a la misma rama, cancelo la ejecución vieja
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  calidad:
+    name: Estilo (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar-python
+      - run: ruff check .
+
   pruebas:
     name: Pruebas (Python ${{ matrix.python-version }})
+    needs: calidad
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -21,17 +38,10 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@v4
 
-      - name: Instalar Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Preparar Python ${{ matrix.python-version }}
+        uses: ./.github/actions/preparar-python
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-
-      - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
-
-      - name: Revisar estilo con ruff
-        run: ruff check .
 
       - name: Ejecutar pruebas con cobertura
         run: pytest --cov=src/branchos --cov-report=term-missing --cov-report=xml --junitxml=reporte-pruebas.xml
@@ -44,3 +54,31 @@ jobs:
           path: |
             reporte-pruebas.xml
             coverage.xml
+
+  contenedor:
+    name: Imagen Docker y prueba de humo
+    needs: pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen
+        run: docker build --build-arg VERSION=${GITHUB_SHA::7} -t branchos-precios:ci .
+
+      - name: Arrancar el contenedor
+        run: docker run -d --name app -p 8000:8000 branchos-precios:ci
+
+      - name: Probar /salud y la API
+        run: |
+          for intento in 1 2 3 4 5 6 7 8 9 10; do
+            curl -fs http://localhost:8000/salud > salud.json && break
+            echo "Intento $intento: la app todavía no responde"; sleep 3
+          done
+          cat salud.json
+          python -c "import json; d=json.load(open('salud.json')); assert d['productos'] > 0, d; assert d['version'] == '${GITHUB_SHA::7}', d"
+          curl -fs "http://localhost:8000/api/productos?marca=Nike" | python -c "import json,sys; print(json.load(sys.stdin)['total'], 'productos Nike')"
+          curl -fs http://localhost:8000/ | grep -q "Buscador de precios"
+
+      - name: Log del contenedor si algo falló
+        if: failure()
+        run: docker logs app
